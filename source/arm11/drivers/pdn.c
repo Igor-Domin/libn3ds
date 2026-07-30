@@ -77,7 +77,7 @@ void PDN_core123Init(void)
 		Pdn *const pdn = getPdnRegs();
 		pdn->lgr_socmode = pdn->lgr_socmode;
 
-#ifdef CORE123_INIT
+#if defined(CORE123_INIT) || defined(HAS_QTMRAM)
 		// Use 804 MHz for LGR2 and 536 for LGR1.
 		u16 socmode;
 		if(cfg11->socinfo & SOCINFO_LGR2) socmode = SOCMODE_LGR2_804MHZ;
@@ -98,7 +98,16 @@ void PDN_core123Init(void)
 			// Fixes for the GPU to work in non-CTR mode.
 			cfg11->gpu_n3ds_cnt = GPU_N3DS_CNT_TEX_FIX | GPU_N3DS_CNT_N3DS_MODE;
 		}
+#else
+		// Make sure we are in CTR mode (if not already).
+		if((pdn->lgr_socmode & SOCMODE_MASK) != SOCMODE_CTR_268MHZ)
+		{
+			PDN_setSocmode(SOCMODE_CTR_268MHZ);
+			gicd->enable_clear[2] = BIT(24); // Clear interrupt ID 88.
+		}
+#endif // if defined(CORE123_INIT) || defined(HAS_QTMRAM)
 
+#ifdef CORE123_INIT
 		cfg11->cdma_peripherals = CDMA_PERIPHERALS_ALL; // Redirect all to CDMA2.
 
 		Scu *const scu = getScuRegs();
@@ -145,15 +154,8 @@ void PDN_core123Init(void)
 
 		// Wakeup core 2/3 and let them jump to their entrypoint.
 		IRQ_softInterrupt(2, BIT(2));
-		IRQ_softInterrupt(3, BIT(3));
-#else
-		// Make sure we are in CTR mode (if not already).
-		if((pdn->lgr_socmode & SOCMODE_MASK) != SOCMODE_CTR_268MHZ)
-		{
-			PDN_setSocmode(SOCMODE_CTR_268MHZ);
-			gicd->enable_clear[2] = BIT(24); // Clear interrupt ID 88.
-		}
-#endif
+		IRQ_softInterrupt(3, BIT(3));	
+#endif // ifdef CORE123_INIT
 	}
 
 	// Wakeup core 1

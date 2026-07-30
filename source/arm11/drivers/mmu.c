@@ -219,6 +219,11 @@ void setupMmu(void)
 		mmuMapPages(BOOT11_HI_MIRROR, (u32)__start__, 1, g_mmuTables->l2Boot11, true,
 		            PERM_PRIV_RO_USR_NA, 0, false, L1_TO_L2(ATTR_NORM_WRITE_BACK_ALLOC));
 
+		// QTMRAM mapping.
+#ifdef HAS_QTMRAM
+		mmuMapSections(QTM_RAM_BASE, QTM_RAM_BASE, 4, true, PERM_PRIV_RW_USR_NA, 0, true, ATTR_NORM_WRITE_BACK_ALLOC);
+#endif // ifdef HAS_QTMRAM
+
 		// Invalidate tag RAMs before enabling SMP as recommended by the MPCore doc.
 		// TODO: Disable SCU on poweroff/reboot/FIRM launch.
 		Scu *const scu = getScuRegs();
