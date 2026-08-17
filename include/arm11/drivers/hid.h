@@ -99,6 +99,8 @@ typedef struct
 
 
 void hidInit(void); // For libn3ds internal usage only.
+/** Set the Circle Pad digital direction threshold in native axis units (0-2047). */
+void hidSetCirclePadDeadzone(u16 threshold);
 void hidScanInput(void);
 u32 hidKeysHeld(void);
 u32 hidKeysDown(void);
@@ -106,6 +108,10 @@ u32 hidKeysUp(void);
 const TouchPos* hidGetTouchPosPtr(void);
 const CpadPos* hidGetCpadPosPtr(void);
 u32 hidGetExtraKeys(u32 clearMask);
+
+/** Convert Circle Pad axes to digital directions using exact press/release thresholds. */
+u32 hidDecodeCirclePadDirections(const CpadPos *pos, u32 previousKeys,
+                                 u16 pressThreshold, u16 releaseThreshold);
 
 #ifdef __cplusplus
 } // extern "C"

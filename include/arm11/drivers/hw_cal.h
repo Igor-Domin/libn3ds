@@ -737,6 +737,7 @@ static_assert(offsetof(Hwcal, unused[0x11F]) == 0x9CF);
 
 extern CodecCalBase g_cdcCal;
 extern BacklightPwmCalBase g_blPwmCal;
+extern McuSliderBounds g_3dSliderCal;
 
 
 Result HWCAL_load(void);

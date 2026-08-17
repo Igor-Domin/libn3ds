@@ -114,6 +114,13 @@ BacklightPwmCalBase g_blPwmCal =
 	.hwBrightnessMin  = 13
 };
 
+// Full ADC range fallback. Valid per-console HWCAL replaces these bounds.
+McuSliderBounds g_3dSliderCal =
+{
+	.min = 0,
+	.max = 255
+};
+
 static u32 g_calLoadedMask = 0;
 
 
@@ -186,6 +193,18 @@ static void updateCals(const Hwcal *const hwcal)
 			memcpy(&g_blPwmCal, &hwcal->blPwn, sizeof(g_blPwmCal));
 			calLoadedMask |= CAL_MASK_BACKLIGHT_PWM;
 		}
+	}
+
+	// Later calibration blocks have their own aging flag rather than a bit in
+	// the header's 16-bit aging mask.
+	const u16 sliderCrc16 = reverseCrc16Modbus(0x55AA, &hwcal->slider, CAL_CRC_OFFSET(hwcal->slider));
+	const McuSliderBounds *const slider = &hwcal->slider._3d;
+	if(hwcal->slider.agingFlag != 0 && hwcal->slider.crc16 == sliderCrc16 &&
+	   slider->min >= 0 && slider->max <= 255 &&
+	   slider->max > slider->min)
+	{
+		g_3dSliderCal = *slider;
+		calLoadedMask |= CAL_MASK_MCU_SLIDERS;
 	}
 
 	// Keep track of successfully updated calibrations.

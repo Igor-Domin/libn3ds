@@ -27,6 +27,7 @@
 #include "arm11/drivers/interrupt.h"
 #include "arm11/drivers/gpio.h"
 #include "arm11/drivers/codec.h"
+#include "arm11/drivers/n3ds_exthid.h"
 
 
 #define MCU_HID_IRQ_MASK  (MCU_IRQ_VOL_SLIDER_CHANGE | MCU_IRQ_BATT_CHARGE_START | \
@@ -35,11 +36,14 @@
                            MCU_IRQ_HOME_RELEASE | MCU_IRQ_HOME_PRESS | \
                            MCU_IRQ_POWER_HELD | MCU_IRQ_POWER_PRESS)
 
-#define CPAD_THRESHOLD  (400)
+#define CPAD_AXIS_MAX  (2047u)
 
 
 static u32 g_kHeld = 0, g_kDown = 0, g_kUp = 0;
 static u32 g_extraKeys = 0;
+static u32 g_fakeKeysCache = 0;
+static u16 g_cpadPressThreshold = 512;
+static u16 g_cpadReleaseThreshold = 307;
 TouchPos g_tPos = {0};
 CpadPos g_cPos = {0};
 
@@ -60,6 +64,7 @@ void hidInit(void)
 	g_extraKeys = tmp;
 
 	CODEC_init();
+	(void)N3DS_EXTHID_init();
 }
 
 static void updateMcuHidState(void)
@@ -80,9 +85,8 @@ static void updateMcuHidState(void)
 
 static u32 rawCodec2Hid(void)
 {
-	static u32 fakeKeysCache = 0;
 	alignas(4) CdcAdcData adc;
-	if(!CODEC_getRawAdcData(&adc)) return fakeKeysCache;
+	if(!CODEC_getRawAdcData(&adc)) return g_fakeKeysCache;
 
 	// Touchscreen
 	// TODO: Calibration
@@ -96,19 +100,20 @@ static u32 rawCodec2Hid(void)
 	g_cPos.y = (__builtin_bswap16(adc.cpadY[0]) & 0xFFFu) - 2048u;
 	g_cPos.x = -((__builtin_bswap16(adc.cpadX[0]) & 0xFFFu) - 2048u); // X axis is inverted.
 
-	if((g_cPos.x >= 0 ? g_cPos.x : -g_cPos.x) > CPAD_THRESHOLD)
-	{
-		if(g_cPos.x >= 0) fakeKeys |= KEY_CPAD_RIGHT;
-		else              fakeKeys |= KEY_CPAD_LEFT;
-	}
-	if((g_cPos.y >= 0 ? g_cPos.y : -g_cPos.y) > CPAD_THRESHOLD)
-	{
-		if(g_cPos.y >= 0) fakeKeys |= KEY_CPAD_UP;
-		else              fakeKeys |= KEY_CPAD_DOWN;
-	}
+	fakeKeys |= hidDecodeCirclePadDirections(&g_cPos, g_fakeKeysCache,
+	                                          g_cpadPressThreshold,
+	                                          g_cpadReleaseThreshold);
 
-	fakeKeysCache = fakeKeys;
+	g_fakeKeysCache = fakeKeys;
 	return fakeKeys;
+}
+
+void hidSetCirclePadDeadzone(u16 threshold)
+{
+	if(threshold > CPAD_AXIS_MAX) threshold = CPAD_AXIS_MAX;
+	g_cpadPressThreshold = threshold;
+	g_cpadReleaseThreshold = (threshold * 3u + 2u) / 5u;
+	g_fakeKeysCache &= ~KEY_CPAD_MASK;
 }
 
 void hidScanInput(void)
@@ -116,7 +121,7 @@ void hidScanInput(void)
 	updateMcuHidState();
 
 	const u32 kOld = g_kHeld;
-	g_kHeld = rawCodec2Hid() | REG_HID_PAD;
+	g_kHeld = rawCodec2Hid() | REG_HID_PAD | N3DS_EXTHID_scanInput();
 	g_kDown = (~kOld) & g_kHeld;
 	g_kUp = kOld & (~g_kHeld);
 }
